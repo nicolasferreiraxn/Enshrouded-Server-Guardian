@@ -1,0 +1,67 @@
+# Compila o dbghelp.dll e, quando a tag começa com v, publica um release com ele anexado.
+#
+# O log deste build é público de propósito: é a forma de qualquer pessoa conferir que o binário
+# anexado a um release saiu deste código, neste commit, sem passar pela máquina de ninguém.
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Compilar
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Conferir que a DLL saiu e exporta o que o servidor pede
+        shell: pwsh
+        run: |
+          $dll = "target/x86_64-pc-windows-msvc/release/dbghelp.dll"
+          if (-not (Test-Path $dll)) { throw "dbghelp.dll nao foi gerada" }
+          $tamanho = (Get-Item $dll).Length
+          Write-Host "dbghelp.dll: $tamanho bytes"
+          # Menor que isto significa que o +crt-static do .cargo/config.toml nao pegou: a DLL fica
+          # dependendo do VCRUNTIME140.dll, que nao existe num servidor rodando sob Wine.
+          if ($tamanho -lt 250000) { throw "dbghelp.dll pequena demais ($tamanho bytes); o +crt-static provavelmente nao pegou" }
+          # O servidor carrega a DLL por causa desta funcao; sem ela, nao serve de nada. O nome fica
+          # em ASCII na tabela de exports, entao da para conferir lendo os bytes - o dumpbin nao
+          # esta no PATH do runner, e chamar um comando que nao existe aborta o passo inteiro.
+          $bytes = [System.IO.File]::ReadAllBytes($dll)
+          $texto = [System.Text.Encoding]::ASCII.GetString($bytes)
+          if ($texto -notmatch "MiniDumpWriteDump") { throw "a DLL nao exporta MiniDumpWriteDump" }
+          Write-Host "exporta MiniDumpWriteDump: ok"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dbghelp-dll
+          path: target/x86_64-pc-windows-msvc/release/dbghelp.dll
+          if-no-files-found: error
+
+      - name: Publicar release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/x86_64-pc-windows-msvc/release/dbghelp.dll
+          generate_release_notes: true
+          body: |
+            Coloque o `dbghelp.dll` na pasta do servidor dedicado, ao lado do
+            `enshrouded_server.exe`, com o servidor parado. A pasta `guardiao-dados/` aparece na
+            primeira entrada de um jogador.
+
+            Este arquivo foi compilado pelo GitHub Actions a partir deste repositório — o log do
+            build é público e pode ser conferido na aba Actions.
