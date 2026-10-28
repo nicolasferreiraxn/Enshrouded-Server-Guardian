@@ -58,7 +58,20 @@ mantém a própria cópia do que gravou por último de cada jogador — e essa c
 Funciona também com o servidor rodando sob **Wine** em Linux, sem opção extra — é o próprio servidor que pede o
 `dbghelp.dll`. Scripts de conveniência para quem hospeda em casa estão em [`install/`](install/).
 
-> ⚠️ **Seu host precisa deixar você manter o seu `dbghelp.dll`.** Alguns hosts gerenciados apagam ou trocam esse
+### 🟣 Na BisectHosting
+
+A BisectHosting tem um carregador de DLLs próprio, então o arquivo vai em outro lugar:
+
+1. **Pare** o servidor.
+2. Envie o **`dbghelp.dll`** para a pasta **`DLLMods/`** — **não** ao lado do `enshrouded_server.exe`.
+3. Suba o servidor. A pasta `guardiao-dados/` e o `guardiao.json` continuam ao lado do `enshrouded_server.exe`.
+
+A ordem e o momento de carga podem ser ajustados em `DLLMods/chainloader.ini`, que também tem uma opção de atraso
+para DLLs que precisam do executável do servidor totalmente carregado. O guardião normalmente não precisa de ajuste.
+Para confirmar que está ativo, abra `guardiao-dados/guardiao.log`: deve aparecer `instalado`. Se aparecer
+`não achei os pontos de ligação`, dê a ele um atraso no `chainloader.ini`.
+
+> ⚠️ **Em outros hosts gerenciados, confira se eles deixam você manter o seu `dbghelp.dll`.** Alguns trocam esse
 > arquivo a cada boot, porque o carregador de mods deles usa o mesmo nome.
 
 ### Hosts que testamos
@@ -68,10 +81,27 @@ Funciona também com o servidor rodando sob **Wine** em Linux, sem opção extra
 | **Nodecraft** | ✅ funciona — o `dbghelp.dll` fica onde foi posto e carrega no boot |
 | **Hospedagem própria (Windows)** | ✅ funciona, sem ressalva |
 | **VPS Linux + Wine** | ⚠️ funciona, mas rodou mal para nós (o `wineserver` virou gargalo; `ntsync` exige kernel ≥ 6.14) |
-| **BisectHosting** | ❌ não funciona — o painel substitui o `dbghelp.dll` a cada boot (verificado duas vezes) |
+| **BisectHosting** | ✅ funciona — envie para `DLLMods/` em vez de ao lado do executável ([detalhes](#-na-bisecthosting)) |
 
-Medido em outubro de 2026, no servidor dedicado do 1.0. Host fora da lista? Ponha a DLL, suba o servidor e veja se
+Medido no servidor dedicado do 1.0. Host fora da lista? Ponha a DLL, suba o servidor e veja se
 o arquivo continua lá.
+
+### 🎚️ Escolhendo o modo
+
+O guardião tem dois modos, escolhidos por um arquivo `guardiao.json` na raiz do servidor, ao lado do
+`enshrouded_server.exe`:
+
+| modo | `guardiao.json` | o que acontece quando um jogador entra com um personagem diferente da cópia do servidor |
+|---|---|---|
+| 🛡️ **Aplicar** (padrão) | `{ "modo": "aplicar" }` — ou nenhum arquivo | a cópia do servidor é posta de volta, e o save recusado fica guardado como prova |
+| 👀 **Observar** | `{ "modo": "observar" }` | só é registrado em `guardiao-dados/registro.jsonl`; nada é alterado |
+
+Para trocar: **pare** o servidor, edite ou crie o `guardiao.json` e **suba** de novo. O modo só é lido no boot.
+O `guardiao-dados/guardiao.log` mostra qual modo está ativo (`instalado; modo aplicar` ou `modo observar`).
+
+Um bom começo num servidor que já tem jogadores: rode em **observar** por algumas sessões, veja no `registro.jsonl`
+quem seria afetado e depois troque para **aplicar**. Há um arquivo de exemplo em
+[`install/examples/guardiao.json`](install/examples/guardiao.json).
 
 ## ⚙️ Como funciona
 
@@ -124,19 +154,6 @@ A referência ao lado do recusado importa mais do que parece: sem ela, comparar 
 de agora mistura "o que o jogador trouxe" com "o que ele jogou depois".
 </details>
 
-<details>
-<summary><b>Modo observar</b></summary>
-<br>
-
-Ponha `guardiao.json` na raiz do servidor:
-
-```json
-{ "modo": "observar" }
-```
-
-Ele registra toda divergência sem alterar nada. Qualquer outro valor, ou nenhum arquivo, significa impor.
-</details>
-
 ## 🚫 O que ele não faz
 
 - **Não é anti-cheat geral.** O que o jogador fizer na sessão é mantido — inclusive o que um trainer fizer enquanto
@@ -169,6 +186,8 @@ cargo build --release      # target/release/dbghelp.dll
 
 - Os formatos dos blocos de personagem e de conhecimento foram descobertos por medição; nada é copiado do código do jogo.
 - **[kfc-parser / Enshrouded Mod Loader](https://github.com/Brabb3l/kfc-parser)**, do brabb3l — usado para ler os recursos do jogo.
+- **BisectHosting** — o Jake e o Dylan entraram em contato, deixaram o guardião compatível com o carregador de DLLs
+  deles e explicaram como instalar por lá. Obrigado por cuidarem da comunidade! 💜
 - **Keen Games** — pelo Enshrouded.
 
 ---

@@ -58,8 +58,21 @@ The server keeps its own copy of what it last saved for each player — and that
 It also works with the server running under **Wine** on Linux, with no extra option — the server itself asks for
 `dbghelp.dll`. Convenience scripts for self-hosting are in [`install/`](install/).
 
-> ⚠️ **Your host must let you keep your own `dbghelp.dll`.** Some managed hosts delete or replace that file on
-> every boot, because their mod loader uses the same name.
+### 🟣 On BisectHosting
+
+BisectHosting has its own DLL loader, so the file goes in a different place:
+
+1. **Stop** the server.
+2. Upload **`dbghelp.dll`** to the **`DLLMods/`** folder — **not** next to `enshrouded_server.exe`.
+3. Start the server. The `guardiao-dados/` folder and `guardiao.json` still live next to `enshrouded_server.exe`.
+
+Load order and timing can be tweaked in `DLLMods/chainloader.ini`, which also has a delay option for DLLs that
+need the server binary to be fully loaded. The guardian normally needs no tweaking. To confirm it's active, open
+`guardiao-dados/guardiao.log`: it should say `instalado`. If it says `não achei os pontos de ligação` instead, give
+it a delay in `chainloader.ini`.
+
+> ⚠️ **On other managed hosts, check that they let you keep your own `dbghelp.dll`.** Some hosts replace that
+> file on every boot, because their own mod loader uses the same name.
 
 ### Hosts we tested
 
@@ -68,10 +81,26 @@ It also works with the server running under **Wine** on Linux, with no extra opt
 | **Nodecraft** | ✅ works — `dbghelp.dll` stays where you put it and loads on boot |
 | **Self-hosted (Windows)** | ✅ works, no caveats |
 | **Linux VPS + Wine** | ⚠️ works, but ran poorly for us (`wineserver` became the bottleneck; `ntsync` needs kernel ≥ 6.14) |
-| **BisectHosting** | ❌ doesn't work — the panel replaces `dbghelp.dll` on every boot (verified twice) |
+| **BisectHosting** | ✅ works — upload to `DLLMods/` instead of next to the binary ([details](#-on-bisecthosting)) |
 
-Measured in October 2026 on the 1.0 dedicated server. Host not listed? Drop the DLL in, start the server and check
-whether the file is still there.
+Measured on the 1.0 dedicated server. Host not listed? Drop the DLL in, start the server and check whether the file
+is still there.
+
+### 🎚️ Choosing the mode
+
+The guardian has two modes, picked by a `guardiao.json` file in the server root, next to `enshrouded_server.exe`:
+
+| mode | `guardiao.json` | what happens when a player joins with a character that differs from the server's copy |
+|---|---|---|
+| 🛡️ **Enforce** (default) | `{ "modo": "aplicar" }` — or no file at all | the server's copy is put back, and the rejected save is kept as evidence |
+| 👀 **Observe** | `{ "modo": "observar" }` | it's only logged in `guardiao-dados/registro.jsonl`; nothing is changed |
+
+To switch: **stop** the server, edit or create `guardiao.json`, **start** it again. The mode is read only on boot.
+`guardiao-dados/guardiao.log` shows which mode is active (`instalado; modo aplicar` or `modo observar`).
+
+A good way to start on a server that already has players: run in **observe** for a few sessions, check
+`registro.jsonl` to see who would be affected, then switch to **enforce**. An example file is in
+[`install/examples/guardiao.json`](install/examples/guardiao.json).
 
 ## ⚙️ How it works
 
@@ -125,19 +154,6 @@ The reference next to the rejected save matters more than it looks: without it, 
 with today's copy mixes "what the player brought" with "what they played afterwards".
 </details>
 
-<details>
-<summary><b>Observe mode</b></summary>
-<br>
-
-Put `guardiao.json` in the server root:
-
-```json
-{ "modo": "observar" }
-```
-
-It logs every divergence without changing anything. Any other value, or no file, means enforce.
-</details>
-
 ## 🚫 What it doesn't do
 
 - **It isn't a general anti-cheat.** Whatever the player does during the session is kept — including what a trainer
@@ -171,6 +187,8 @@ cargo build --release      # target/release/dbghelp.dll
 
 - The character and knowledge block formats were worked out by measurement; nothing is copied from the game's code.
 - **[kfc-parser / Enshrouded Mod Loader](https://github.com/Brabb3l/kfc-parser)** by brabb3l — used to read the game's resources.
+- **BisectHosting** — Jake and Dylan reached out, made the guardian work with their DLL loader and explained how
+  to install it there. Thank you for caring about the community! 💜
 - **Keen Games** — for Enshrouded.
 
 ---
