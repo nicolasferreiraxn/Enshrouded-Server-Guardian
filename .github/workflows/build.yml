@@ -1,7 +1,7 @@
-# Compila o dbghelp.dll e, quando a tag começa com v, publica um release com ele anexado.
+# Builds dbghelp.dll and, when the tag starts with v, publishes a release with it attached.
 #
-# O log deste build é público de propósito: é a forma de qualquer pessoa conferir que o binário
-# anexado a um release saiu deste código, neste commit, sem passar pela máquina de ninguém.
+# This build log is public on purpose: it lets anyone check that the binary attached to a release
+# came from this code, at this commit, without passing through anyone's machine.
 name: build
 
 on:
@@ -35,12 +35,12 @@ jobs:
           if (-not (Test-Path $dll)) { throw "dbghelp.dll nao foi gerada" }
           $tamanho = (Get-Item $dll).Length
           Write-Host "dbghelp.dll: $tamanho bytes"
-          # Menor que isto significa que o +crt-static do .cargo/config.toml nao pegou: a DLL fica
-          # dependendo do VCRUNTIME140.dll, que nao existe num servidor rodando sob Wine.
+          # Smaller than this means the +crt-static from .cargo/config.toml didn't apply: the DLL would
+          # depend on VCRUNTIME140.dll, which doesn't exist on a server running under Wine.
           if ($tamanho -lt 250000) { throw "dbghelp.dll pequena demais ($tamanho bytes); o +crt-static provavelmente nao pegou" }
-          # O servidor carrega a DLL por causa desta funcao; sem ela, nao serve de nada. O nome fica
-          # em ASCII na tabela de exports, entao da para conferir lendo os bytes - o dumpbin nao
-          # esta no PATH do runner, e chamar um comando que nao existe aborta o passo inteiro.
+          # The server loads the DLL because of this function; without it, the DLL is useless. The name is
+          # ASCII in the export table, so reading the bytes is enough - dumpbin isn't on the runner's
+          # PATH, and calling a missing command aborts the whole step.
           $bytes = [System.IO.File]::ReadAllBytes($dll)
           $texto = [System.Text.Encoding]::ASCII.GetString($bytes)
           if ($texto -notmatch "MiniDumpWriteDump") { throw "a DLL nao exporta MiniDumpWriteDump" }

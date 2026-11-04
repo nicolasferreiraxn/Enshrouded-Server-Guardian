@@ -23,6 +23,11 @@
 
 ---
 
+> [!NOTE]
+> **Atualização do jogo de novembro de 2026 (build 1285601): a v1.0.0 continua funcionando — não há nada para atualizar.**
+> O guardião acha os ganchos por padrão de bytes, então sobreviveu a esta atualização do mesmo jeito que à anterior.
+> Veja [Atualizações do jogo](#-atualizações-do-jogo) para saber o que acontece se uma atualização futura quebrar algo.
+
 ## 🔥 De onde veio
 
 Quatro amigos num servidor dedicado. Dois problemas apareceram:
@@ -68,8 +73,8 @@ A BisectHosting tem um carregador de DLLs próprio, então o arquivo vai em outr
 
 A ordem e o momento de carga podem ser ajustados em `DLLMods/chainloader.ini`, que também tem uma opção de atraso
 para DLLs que precisam do executável do servidor totalmente carregado. O guardião normalmente não precisa de ajuste.
-Para confirmar que está ativo, abra `guardiao-dados/guardiao.log`: deve aparecer `instalado`. Se aparecer
-`não achei os pontos de ligação`, dê a ele um atraso no `chainloader.ini`.
+Para confirmar que está ativo, abra `guardiao-dados/guardiao.log`: deve aparecer `Ativo (ganchos instalados)`. Se
+aparecer `Não consegui instalar os ganchos neste build do servidor`, dê a ele um atraso no `chainloader.ini`.
 
 > ⚠️ **Em outros hosts gerenciados, confira se eles deixam você manter o seu `dbghelp.dll`.** Alguns trocam esse
 > arquivo a cada boot, porque o carregador de mods deles usa o mesmo nome.
@@ -97,11 +102,38 @@ O guardião tem dois modos, escolhidos por um arquivo `guardiao.json` na raiz do
 | 👀 **Observar** | `{ "modo": "observar" }` | só é registrado em `guardiao-dados/registro.jsonl`; nada é alterado |
 
 Para trocar: **pare** o servidor, edite ou crie o `guardiao.json` e **suba** de novo. O modo só é lido no boot.
-O `guardiao-dados/guardiao.log` mostra qual modo está ativo (`instalado; modo aplicar` ou `modo observar`).
+O `guardiao-dados/guardiao.log` mostra qual modo está ativo (`Modo: APLICAR` ou `Modo: OBSERVAR`).
+As mensagens saem em inglês por padrão; para tê-las em português, acrescente `"idioma": "pt-BR"` ao `guardiao.json`
+(por exemplo, `{ "modo": "observar", "idioma": "pt-BR" }`). As mensagens citadas aqui são as da versão em português.
 
 Um bom começo num servidor que já tem jogadores: rode em **observar** por algumas sessões, veja no `registro.jsonl`
 quem seria afetado e depois troque para **aplicar**. Há um arquivo de exemplo em
 [`install/examples/guardiao.json`](install/examples/guardiao.json).
+
+## 🔄 Atualizações do jogo
+
+**Você não precisa atualizar o guardião a cada atualização do jogo.** Ele procura os ganchos por padrão de bytes toda
+vez que o servidor sobe, então a mesma DLL continua funcionando enquanto o código do servidor que ela usa não mudar.
+
+| build | data | v1.0.0 |
+|---|---|---|
+| 1273043 | outubro de 2026 | ✅ |
+| 1285601 | novembro de 2026 | ✅ ganchos instalados, sem recompilar |
+
+Depois de uma atualização do jogo, abra o `guardiao-dados/guardiao.log` e veja o último boot:
+
+- **`Ativo (ganchos instalados)`** — está ativo, nada a fazer.
+- **`Não consegui instalar os ganchos ... O guardião está DESLIGADO`** — a atualização mexeu em algo de que o guardião depende.
+  Ele **se recusa a remendar** e sai do caminho: o servidor roda exatamente como sem o mod, e **nenhum progresso se
+  perde**. Os jogadores só ficam sem proteção até sair uma versão nova.
+
+> ⚠️ **Se o guardião ficou desligado por um tempo** (a mensagem acima, ou você tirou a DLL) e os jogadores continuaram
+> jogando, as cópias dele estão **mais antigas** que os personagens reais. Antes de voltar ao modo aplicar, rode uma
+> sessão no modo **observar**, ou apague as pastas `guardiao-dados/<steamid>/` para ele recomeçar. Senão, o modo
+> aplicar poria a cópia antiga de volta.
+
+Para ter mais tranquilidade na primeira sessão depois de qualquer atualização do jogo, você pode trocar para
+**observar**, entrar uma vez, conferir que o `registro.jsonl` diz `igual` para o seu personagem e voltar para **aplicar**.
 
 ## ⚙️ Como funciona
 
@@ -159,7 +191,7 @@ de agora mistura "o que o jogador trouxe" com "o que ele jogou depois".
 - **Não é anti-cheat geral.** O que o jogador fizer na sessão é mantido — inclusive o que um trainer fizer enquanto
   ele está conectado.
 - **Não toca no mundo:** construções, baús e tudo fora dos blocos de personagem e de conhecimento ficam como estão.
-- **Não fala com a rede** nem com serviço nenhum. Só lê e escreve na pasta do servidor.
+- **O único acesso à rede é a consulta de versão:** uma pergunta ao GitHub ao ligar e a cada 24 h (desliga com `"checkUpdates": false`). Nunca baixa nada nem envia nada sobre o seu servidor; todo o resto são arquivos na pasta do servidor.
 - **Depende das entranhas do servidor.** Se uma atualização mover os padrões, os ganchos não se instalam e a DLL
   sai do caminho.
 
@@ -186,8 +218,7 @@ cargo build --release      # target/release/dbghelp.dll
 
 - Os formatos dos blocos de personagem e de conhecimento foram descobertos por medição; nada é copiado do código do jogo.
 - **[kfc-parser / Enshrouded Mod Loader](https://github.com/Brabb3l/kfc-parser)**, do brabb3l — usado para ler os recursos do jogo.
-- **BisectHosting** — o Jake e o Dylan entraram em contato, deixaram o guardião compatível com o carregador de DLLs
-  deles e explicaram como instalar por lá. Obrigado por cuidarem da comunidade! 💜
+- **BisectHosting** — o Jake e o Dylan entraram em contato, deixaram o guardião compatível com o carregador de DLLs deles e explicaram como instalar por lá. Obrigado por cuidarem da comunidade! 💜
 - **Keen Games** — pelo Enshrouded.
 
 ---

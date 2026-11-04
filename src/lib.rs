@@ -1,10 +1,12 @@
-//! Guardião do personagem. Carregado pelo servidor como dbghelp.dll.
+//! Enshrouded Server Guardian. Loaded by the server as dbghelp.dll.
 //!
-//! O servidor só importa MiniDumpWriteDump do dbghelp; essa função é repassada ao dbghelp do sistema.
-//! Na carga, uma thread confere o build e troca o destino de quatro instruções (ver plano.md) para as
-//! funções `entrada`, `saida` e `sessao`, que chamam as originais.
+//! The server only imports MiniDumpWriteDump from dbghelp; that function is forwarded to the system dbghelp.
+//! On load, a thread finds the hook points and redirects four instructions to the `entrada` (join),
+//! `saida` (save) and `sessao` (session) functions, which call the originals.
 
 mod achar;
+mod atualizacao;
+mod continuidade;
 mod estado;
 mod instalar;
 mod registro;
@@ -20,7 +22,7 @@ use windows_sys::Win32::System::Threading::CreateThread;
 pub unsafe extern "system" fn DllMain(modulo: HMODULE, motivo: u32, _: *mut c_void) -> BOOL {
     if motivo == DLL_PROCESS_ATTACH {
         DisableThreadLibraryCalls(modulo);
-        // nada de trabalho pesado aqui: a instalação roda numa thread própria
+        // no heavy work here: installation runs on its own thread
         CreateThread(core::ptr::null(), 0, Some(thread_instalar), core::ptr::null(), 0, core::ptr::null_mut());
     }
     TRUE
@@ -33,7 +35,7 @@ unsafe extern "system" fn thread_instalar(_: *mut c_void) -> u32 {
 
 type MiniDump = unsafe extern "system" fn(HANDLE, u32, HANDLE, u32, *const c_void, *const c_void, *const c_void) -> BOOL;
 
-/// Repasse para o dbghelp do sistema (usado pelo servidor para gravar dumps de travamento).
+/// Forwards to the system dbghelp (used by the server to write crash dumps).
 #[no_mangle]
 pub unsafe extern "system" fn MiniDumpWriteDump(
     processo: HANDLE, pid: u32, arquivo: HANDLE, tipo: u32,

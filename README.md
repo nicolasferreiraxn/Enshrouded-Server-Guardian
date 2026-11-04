@@ -23,6 +23,11 @@
 
 ---
 
+> [!NOTE]
+> **Game update of November 2026 (build 1285601): v1.0.0 still works — there is nothing to update.**
+> The guardian finds its hooks by byte pattern, so it survived this update the same way it survived the previous one.
+> See [Game updates](#-game-updates) for what happens if a future update ever does break it.
+
 ## 🔥 Where it came from
 
 Four friends on a dedicated server. Two problems showed up:
@@ -68,8 +73,8 @@ BisectHosting has its own DLL loader, so the file goes in a different place:
 
 Load order and timing can be tweaked in `DLLMods/chainloader.ini`, which also has a delay option for DLLs that
 need the server binary to be fully loaded. The guardian normally needs no tweaking. To confirm it's active, open
-`guardiao-dados/guardiao.log`: it should say `instalado`. If it says `não achei os pontos de ligação` instead, give
-it a delay in `chainloader.ini`.
+`guardiao-dados/guardiao.log`: it should say `Active (hooks installed)`. If it says `Could not hook into this server
+build` instead, give it a delay in `chainloader.ini`.
 
 > ⚠️ **On other managed hosts, check that they let you keep your own `dbghelp.dll`.** Some hosts replace that
 > file on every boot, because their own mod loader uses the same name.
@@ -96,11 +101,37 @@ The guardian has two modes, picked by a `guardiao.json` file in the server root,
 | 👀 **Observe** | `{ "modo": "observar" }` | it's only logged in `guardiao-dados/registro.jsonl`; nothing is changed |
 
 To switch: **stop** the server, edit or create `guardiao.json`, **start** it again. The mode is read only on boot.
-`guardiao-dados/guardiao.log` shows which mode is active (`instalado; modo aplicar` or `modo observar`).
+`guardiao-dados/guardiao.log` shows which mode is active (`Mode: ENFORCE` or `Mode: OBSERVE`).
+Log messages are in English; add `"idioma": "pt-BR"` to `guardiao.json` for Portuguese.
 
 A good way to start on a server that already has players: run in **observe** for a few sessions, check
 `registro.jsonl` to see who would be affected, then switch to **enforce**. An example file is in
 [`install/examples/guardiao.json`](install/examples/guardiao.json).
+
+## 🔄 Game updates
+
+**You don't need to update the guardian after every game update.** It looks for its hooks by byte pattern every time
+the server starts, so the same DLL keeps working as long as the server code it hooks hasn't changed.
+
+| build | date | v1.0.0 |
+|---|---|---|
+| 1273043 | October 2026 | ✅ |
+| 1285601 | November 2026 | ✅ hooks install, no rebuild |
+
+After a game update, open `guardiao-dados/guardiao.log` and look at the last boot:
+
+- **`Active (hooks installed)`** — it's active, nothing to do.
+- **`Could not hook into this server build ... The guardian is OFF`** — this update moved something the guardian relies on.
+  It **refuses to patch** and steps aside: the server runs exactly as it would without the mod, and **no progress is
+  lost**. Players just aren't protected until a new release comes out.
+
+> ⚠️ **If the guardian was ever off for a while** (that message above, or you removed the DLL) and players kept
+> playing, its stored copies are now **older** than their real characters. Before turning enforce back on, run one
+> session in **observe** mode, or delete the `guardiao-dados/<steamid>/` folders so it starts fresh. Otherwise enforce
+> would put the old copy back.
+
+For extra peace of mind on the first session after any game update, you can switch to **observe**, join once and
+check that `registro.jsonl` says `igual` for your character, then switch back to **enforce**.
 
 ## ⚙️ How it works
 
@@ -160,7 +191,7 @@ with today's copy mixes "what the player brought" with "what they played afterwa
   does while they're connected.
 - **It doesn't touch the world:** buildings, chests and anything outside the character and knowledge blocks stay as
   they are.
-- **It doesn't talk to the network** or any service. It only reads and writes files in the server folder.
+- **Its only network request is the version check:** one request to GitHub on boot and every 24 h (off with `"checkUpdates": false`). It never downloads anything and sends nothing about your server; everything else is files in the server folder.
 - **It depends on the server's internals.** If an update moves the patterns, the hooks don't install and the DLL gets
   out of the way.
 
@@ -187,8 +218,7 @@ cargo build --release      # target/release/dbghelp.dll
 
 - The character and knowledge block formats were worked out by measurement; nothing is copied from the game's code.
 - **[kfc-parser / Enshrouded Mod Loader](https://github.com/Brabb3l/kfc-parser)** by brabb3l — used to read the game's resources.
-- **BisectHosting** — Jake and Dylan reached out, made the guardian work with their DLL loader and explained how
-  to install it there. Thank you for caring about the community! 💜
+- **BisectHosting** — Jake and Dylan reached out, made the guardian work with their DLL loader and explained how to install it there. Thank you for caring about the community! 💜
 - **Keen Games** — for Enshrouded.
 
 ---

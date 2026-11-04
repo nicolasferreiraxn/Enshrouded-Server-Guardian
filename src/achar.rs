@@ -1,10 +1,10 @@
-//! Acha os pontos de ligação pelo formato do código, não por endereço fixo, para sobreviver a
-//! atualizações do jogo. Cada busca precisa dar exatamente um resultado, senão a instalação é abortada.
+//! Finds the hook points by the shape of the code, not by fixed address, so they survive game
+//! updates. Every search must yield exactly one result, otherwise installation is aborted.
 //!
-//! Pontos:
-//! - entrada: o `call` ao leitor do save, logo antes da mensagem "[save2] Failed to read client savegame for"
-//! - saida:   os dois `lea r8, [rip+d]` que apontam para a função que monta a mensagem de save
-//! - sessao:  o `call` ao log, logo depois da mensagem "[session] Remote player added. Player handle"
+//! Hook points:
+//! - entrada (join):   the `call` to the save reader, right before the message "[save2] Failed to read client savegame for"
+//! - saida (save):    the two `lea r8, [rip+d]` pointing to the function that builds the save message
+//! - sessao (session): the `call` to the logger, right after the message "[session] Remote player added. Player handle"
 
 use core::slice;
 
@@ -15,11 +15,11 @@ pub struct Secao {
 
 pub struct Imagem {
     pub texto: Secao,
-    pub todas: Secao, // imagem inteira, para procurar as mensagens em qualquer seção de dados
+    pub todas: Secao, // whole image, to search for the messages in any data section
 }
 
-/// Prólogo da função que monta a mensagem de save (igual nos builds 1269579 e 1273043).
-/// Termina antes do `call` relativo, cujo deslocamento muda entre builds.
+/// Prologue of the function that builds the save message (identical in builds 1269579, 1273043 and 1285601).
+/// It stops before the relative `call`, whose displacement changes between builds.
 const PROLOGO_MONTADOR: &[u8] = &[
     0x40, 0x55, 0x53, 0x41, 0x56, 0x48, 0x8d, 0xac, 0x24, 0xc0, 0xff, 0xfe, 0xff, 0xb8, 0x40, 0x01,
     0x01, 0x00,
@@ -46,14 +46,14 @@ fn acha_unico(agulha: &[u8], palheiro: &[u8], base: usize) -> Result<usize, Stri
         .enumerate()
         .filter(|(_, w)| *w == agulha)
         .map(|(i, _)| base + i);
-    let primeiro = achados.next().ok_or("padrão não encontrado")?;
+    let primeiro = achados.next().ok_or("pattern not found")?;
     if achados.next().is_some() {
-        return Err("padrão encontrado mais de uma vez".into());
+        return Err("pattern found more than once".into());
     }
     Ok(primeiro)
 }
 
-/// Endereços das instruções `lea reg, [rip+disp32]` (48/4c 8d /r, mod=00 rm=101) que apontam para `alvo`.
+/// Addresses of the `lea reg, [rip+disp32]` instructions (48/4c 8d /r, mod=00 rm=101) that point to `alvo`.
 fn leas_para(img: &Imagem, alvo: usize, so_r8: bool) -> Vec<usize> {
     let t = unsafe { bytes(&img.texto) };
     let mut out = Vec::new();
@@ -71,7 +71,7 @@ fn leas_para(img: &Imagem, alvo: usize, so_r8: bool) -> Vec<usize> {
     out
 }
 
-/// Destino absoluto do `call rel32` em `ins`, se houver um ali e apontar para dentro do código.
+/// Absolute target of the `call rel32` at `ins`, if there is one and it points into the code.
 fn destino_call(img: &Imagem, ins: usize) -> Option<usize> {
     let t = unsafe { bytes(&img.texto) };
     let i = ins.checked_sub(img.texto.base)?;
@@ -83,7 +83,7 @@ fn destino_call(img: &Imagem, ins: usize) -> Option<usize> {
     (img.texto.base..img.texto.base + img.texto.tam).contains(&dst).then_some(dst)
 }
 
-/// Primeiro `call rel32` numa janela antes (`para_tras`) ou depois do endereço dado.
+/// First `call rel32` in a window before (`para_tras`) or after the given address.
 fn call_proximo(img: &Imagem, de: usize, janela: usize, para_tras: bool) -> Option<usize> {
     let passo: isize = if para_tras { -1 } else { 1 };
     let inicio: isize = if para_tras { -5 } else { 7 };
@@ -98,33 +98,33 @@ fn call_proximo(img: &Imagem, de: usize, janela: usize, para_tras: bool) -> Opti
 
 fn acha_mensagem(img: &Imagem, msg: &[u8]) -> Result<usize, String> {
     let todas = unsafe { bytes(&img.todas) };
-    acha_unico(msg, todas, img.todas.base).map_err(|e| format!("mensagem: {e}"))
+    acha_unico(msg, todas, img.todas.base).map_err(|e| format!("join message: {e}"))
 }
 
 pub fn achar(img: &Imagem) -> Result<Pontos, String> {
-    // entrada: lea da mensagem -> primeiro call antes dela
+    // join: lea of the message -> first call before it
     let msg = acha_mensagem(img, MSG_ENTRADA)?;
     let refs = leas_para(img, msg, false);
     if refs.len() != 1 {
-        return Err(format!("mensagem de entrada referenciada {} vezes (esperado 1)", refs.len()));
+        return Err(format!("join message referenced {} times (expected 1)", refs.len()));
     }
     let entrada_call = call_proximo(img, refs[0], 80, true).ok_or("call do leitor não achado")?;
     let entrada_alvo = destino_call(img, entrada_call).unwrap();
 
-    // saida: prólogo do montador -> os dois lea r8 que o apontam
+    // save: builder prologue -> the two lea r8 pointing to it
     let t = unsafe { bytes(&img.texto) };
     let saida_alvo =
-        acha_unico(PROLOGO_MONTADOR, t, img.texto.base).map_err(|e| format!("montador: {e}"))?;
+        acha_unico(PROLOGO_MONTADOR, t, img.texto.base).map_err(|e| format!("save builder: {e}"))?;
     let leas = leas_para(img, saida_alvo, true);
     if leas.len() != 2 {
-        return Err(format!("montador referenciado por {} lea r8 (esperado 2)", leas.len()));
+        return Err(format!("save builder referenced by {} lea r8 (expected 2)", leas.len()));
     }
 
-    // sessao: lea da mensagem -> primeiro call depois dela
+    // session: lea of the message -> first call after it
     let msg = acha_mensagem(img, MSG_SESSAO)?;
     let refs = leas_para(img, msg, false);
     if refs.len() != 1 {
-        return Err(format!("mensagem de sessão referenciada {} vezes (esperado 1)", refs.len()));
+        return Err(format!("session message referenced {} times (expected 1)", refs.len()));
     }
     let sessao_call = call_proximo(img, refs[0], 90, false).ok_or("call do log não achado")?;
     let sessao_alvo = destino_call(img, sessao_call).unwrap();
